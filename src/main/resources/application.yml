@@ -3,3 +3,8 @@ spring:
     name: data-enrichment-service
   jackson:
     property-naming-strategy: SNAKE_CASE
+    deserialization:
+      fail-on-unknown-properties: true
+
+enrichment:
+  event-time-zone: UTC

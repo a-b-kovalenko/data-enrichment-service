@@ -23,7 +23,14 @@ description: >-
 
 1. Run `git status --short` and inspect the relevant `git diff` before staging.
 2. Run `git diff --check` for whitespace errors.
-3. When Java, Gradle, configuration, or test files change, run:
+3. After every completed logical Java, Gradle, configuration, or test change, run:
+
+   ```bash
+   ./gradlew --no-daemon clean build
+   ```
+
+   Resolve every failure before continuing. During diagnosis, run the smallest relevant Gradle task.
+   Before a commit, additionally run:
 
    ```bash
    ./gradlew --no-daemon check
