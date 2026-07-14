@@ -5,6 +5,8 @@ spring:
     property-naming-strategy: SNAKE_CASE
     deserialization:
       fail-on-unknown-properties: true
+  liquibase:
+    change-log: classpath:/db/changelog/db.changelog-master.xml
 
 enrichment:
   event-time-zone: UTC

@@ -2,3 +2,13 @@ spring:
   docker:
     compose:
       enabled: false
+  datasource:
+    url: ${ENRICHMENT_DATASOURCE_URL:jdbc:postgresql://localhost:5432/enrichment?currentSchema=enrichment_schema}
+    username: ${ENRICHMENT_DATASOURCE_USERNAME:user}
+    password: ${ENRICHMENT_DATASOURCE_PASSWORD:password}
+  jpa:
+    properties:
+      hibernate:
+        default_schema: enrichment_schema
+  liquibase:
+    default-schema: enrichment_schema

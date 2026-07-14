@@ -9,8 +9,15 @@ publishes RabbitMQ events. Infrastructure concerns must not dictate business-flo
 
 Use a single Gradle module with ports-and-adapters package boundaries. Infrastructure adapters in
 `infrastructure` call application services and map transport DTOs to application commands. The
-`application` package contains use cases, commands, pure application mappers, and ports. The `domain` package contains
-infrastructure-independent models and rules.
+`application` package contains use cases, commands, pure application mappers, and ports. The
+`domain` package contains infrastructure-independent models and rules.
+
+Dependencies point inward: `infrastructure` depends on `application`, and `application` depends
+on `domain`. Application services depend on ports rather than JPA repositories, AMQP clients, or
+HTTP clients. For example, `ResultPersistencePort` describes the persistence capability needed by
+the application flow, while `ResultPersistenceAdapter` implements that port with JPA and
+PostgreSQL. This keeps persistence details outside the business flow and permits unit tests to mock
+the port.
 
 ## Alternatives
 
