@@ -5,7 +5,6 @@ plugins {
   id 'checkstyle'
   id 'jacoco'
   id 'idea'
-  id 'org.openapi.generator' version '7.23.0'
 }
 
 group = 'com.andrii'
@@ -86,6 +85,9 @@ checkstyle {
 }
 
 tasks.withType(Checkstyle).configureEach {
+  if (name == 'checkstyleMain') {
+    source = fileTree('src/main/java')
+  }
   reports {
     html.required = true
     xml.required = true
@@ -162,17 +164,3 @@ tasks.named('check') {
   dependsOn tasks.named('jacocoTestCoverageVerification')
   dependsOn tasks.named('verifyIntegrationTestJacocoIsolation')
 }
-
-openApiGenerate {
-  generatorName.set('java')
-  inputSpec.set(layout.projectDirectory.file('src/main/resources/openapi/enrichment-api.yaml'))
-  outputDir.set(layout.buildDirectory.dir('generated/openapi'))
-  apiPackage.set('com.andrii.enrichment.generated.client.api')
-  modelPackage.set('com.andrii.enrichment.generated.client.model')
-  generateApiTests.set(false)
-  generateModelTests.set(false)
-  generateApiDocumentation.set(false)
-  generateModelDocumentation.set(false)
-}
-
-sourceSets.main.java.srcDir(layout.buildDirectory.dir('generated/openapi/src/main/java'))

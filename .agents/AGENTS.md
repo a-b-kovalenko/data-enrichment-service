@@ -47,8 +47,7 @@
 - All JSON request and response property names must use `snake_case`.
 - Configure Jackson globally for `snake_case`; do not rely on scattered per-field annotations
   unless an external contract explicitly requires an exception.
-- OpenAPI schemas, RabbitMQ payloads, WireMock stubs, and JSON assertions must use the same
-  `snake_case` property names.
+- RabbitMQ payloads, WireMock stubs, and JSON assertions must use the same `snake_case` property names.
 
 ### Complexity and tests
 
@@ -103,7 +102,7 @@
 
 ```text
 src/main/java                 Application source
-src/main/resources            Runtime configuration, Liquibase, OpenAPI
+src/main/resources            Runtime configuration and Liquibase
 src/test/java                 Unit tests only
 src/test/resources            Unit-test resources
 src/integrationTest/java      Integration tests only
@@ -157,9 +156,8 @@ docs/adr                      Architecture Decision Records
 
 ## External API and Circuit Breaker
 
-- Define the external `POST /enrich` contract in `src/main/resources/openapi/enrichment-api.yaml`
-  and validate it during the build.
-- Generate only the necessary client models/interfaces; do not generate a server.
+- Use OpenAPI only when this service exposes its own HTTP endpoints. The external `POST /enrich` client uses
+  application DTOs and WireMock contract tests.
 - Use Spring `RestClient` with configured connection and read timeouts.
 - Verify that `userId` in the external response matches the request.
 - Wrap the real HTTP call in a Resilience4j Circuit Breaker.
@@ -202,5 +200,5 @@ docs/adr                      Architecture Decision Records
 
 - Maintain ADRs in `docs/adr` using Context, Decision, Alternatives, and Consequences.
 - Required ADRs cover architecture style, transactional outbox, idempotency/delivery semantics,
-  OpenAPI client, retry/DLQ strategy, and external API Circuit Breaker.
+  retry/DLQ strategy, and external API Circuit Breaker.
 - Keep README aligned with actual configuration, topology, test commands, contracts, and delivery guarantees.
