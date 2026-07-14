@@ -13,7 +13,11 @@ import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 
 @Configuration
-@EnableConfigurationProperties({EnrichmentProperties.class, EnrichmentClientProperties.class})
+@EnableConfigurationProperties({
+  EnrichmentProperties.class,
+  EnrichmentClientProperties.class,
+  EnrichmentMessagingProperties.class
+})
 public class EnrichmentConfiguration {
 
   @Bean
