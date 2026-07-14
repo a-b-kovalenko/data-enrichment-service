@@ -1,0 +1,4 @@
+interface:
+  display_name: "Project Commit"
+  short_description: "Validate and commit safely"
+  default_prompt: "Use $project-commit to validate the current changes and prepare a commit."
