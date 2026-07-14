@@ -38,6 +38,35 @@ RabbitMQ input
 - Resilience4j Circuit Breaker для зовнішнього API; retry delivery виконує RabbitMQ,
   а не HTTP-клієнт.
 
+## Архітектура застосунку
+
+Застосунок використовує практичний варіант Ports and Adapters (Hexagonal)
+архітектури в межах одного Gradle-модуля:
+
+```text
+RabbitMQ / HTTP / PostgreSQL
+            │
+            ▼
+    infrastructure adapters
+            │
+            ▼
+ application services + ports
+            │
+            ▼
+       domain models
+```
+
+- `domain` містить незалежні від технологій бізнес-моделі та правила.
+- `application` містить use cases, команди, application mapper-и й порти-інтерфейси.
+- `infrastructure` містить конкретні адаптери для JPA/PostgreSQL, RabbitMQ, HTTP і Spring.
+
+Залежності спрямовані всередину: `infrastructure → application → domain`.
+Наприклад, application service залежить від `ResultPersistencePort`, а
+`ResultPersistenceAdapter` реалізує цей порт через JPA та PostgreSQL. Завдяки цьому
+business-flow не залежить від JPA чи RabbitMQ і тестується через mock портів.
+
+Докладне обґрунтування: [ADR 0001](docs/adr/0001-architecture-style.md).
+
 ## Технології
 
 - Java 21, Gradle, Spring Boot 4.x;

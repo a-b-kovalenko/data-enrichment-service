@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+  <changeSet id="001-create-result-table" author="andrii">
+    <sql>
+      CREATE TABLE result (
+        id BIGSERIAL PRIMARY KEY,
+        message_id UUID NOT NULL,
+        user_id BIGINT NOT NULL,
+        action VARCHAR(255) NOT NULL,
+        result BOOLEAN NOT NULL,
+        event_timestamp TIMESTAMPTZ NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL,
+        CONSTRAINT uk_result_message_id UNIQUE (message_id)
+      );
+    </sql>
+  </changeSet>
+</databaseChangeLog>
