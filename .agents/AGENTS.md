@@ -167,16 +167,17 @@ docs/adr                      Architecture Decision Records
 ## Docker Compose
 
 - `compose.yaml` belongs to phase 1 and starts PostgreSQL and RabbitMQ for local development.
-- Persist data under `/Users/akovalenko/Projects/Personal/project-data/` with valid bind mounts, for example:
+- Read `PROJECT_DATA_DIR` from a local `.env` file. Commit `.env.example`, but never commit `.env`.
+- Persist data under `${PROJECT_DATA_DIR}` with valid bind mounts, for example:
 
   ```yaml
   services:
     postgres:
       volumes:
-        - /Users/akovalenko/Projects/Personal/project-data/postgres:/var/lib/postgresql/data
+        - ${PROJECT_DATA_DIR}/postgres:/var/lib/postgresql/data
     rabbitmq:
       volumes:
-        - /Users/akovalenko/Projects/Personal/project-data/rabbitmq:/var/lib/rabbitmq
+        - ${PROJECT_DATA_DIR}/rabbitmq:/var/lib/rabbitmq
   ```
 
 - Validate Compose with `docker compose config` and verify container health checks when Compose changes.
