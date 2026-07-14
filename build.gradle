@@ -1,34 +1,175 @@
 plugins {
-    id 'java'
-    id 'checkstyle'
+  id 'java'
+  id 'org.springframework.boot' version '4.0.3'
+  id 'io.spring.dependency-management' version '1.1.7'
+  id 'checkstyle'
+  id 'jacoco'
+  id 'idea'
+  id 'org.openapi.generator' version '7.23.0'
 }
 
 group = 'com.andrii'
 version = '1.0-SNAPSHOT'
 
+def coverageExclusions = [
+  '**/*Application.class',
+  '**/configuration/**',
+  '**/dto/**',
+  '**/entity/**',
+  '**/generated/**'
+]
+
 repositories {
-    mavenCentral()
+  mavenCentral()
+}
+
+java {
+  toolchain {
+    languageVersion = JavaLanguageVersion.of(21)
+  }
+}
+
+sourceSets {
+  integrationTest {
+    java.srcDir('src/integrationTest/java')
+    resources.srcDir('src/integrationTest/resources')
+    compileClasspath += sourceSets.main.output
+    runtimeClasspath += sourceSets.main.output
+  }
+}
+
+configurations {
+  integrationTestImplementation.extendsFrom testImplementation
+  integrationTestRuntimeOnly.extendsFrom testRuntimeOnly
 }
 
 dependencies {
-    testImplementation platform('org.junit:junit-bom:6.0.0')
-    testImplementation 'org.junit.jupiter:junit-jupiter'
-    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+  implementation 'org.springframework.boot:spring-boot-starter-amqp'
+  implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+  implementation 'org.springframework.boot:spring-boot-starter-web'
+  implementation 'org.liquibase:liquibase-core'
+  implementation 'io.github.resilience4j:resilience4j-circuitbreaker:2.3.0'
+  implementation 'org.mapstruct:mapstruct:1.6.3'
+
+  annotationProcessor 'org.mapstruct:mapstruct-processor:1.6.3'
+  compileOnly 'org.projectlombok:lombok:1.18.42'
+  annotationProcessor 'org.projectlombok:lombok:1.18.42'
+  annotationProcessor 'org.projectlombok:lombok-mapstruct-binding:0.2.0'
+
+  runtimeOnly 'org.postgresql:postgresql'
+
+  testImplementation platform('org.junit:junit-bom:5.12.2')
+  testImplementation platform('org.testcontainers:testcontainers-bom:1.21.4')
+  testImplementation 'org.junit.jupiter:junit-jupiter'
+  testImplementation 'org.assertj:assertj-core:3.27.3'
+  testImplementation 'org.mockito:mockito-junit-jupiter:5.15.2'
+  testImplementation 'org.testcontainers:junit-jupiter'
+  testImplementation 'org.testcontainers:postgresql'
+  testImplementation 'org.testcontainers:rabbitmq'
+  testImplementation 'org.wiremock:wiremock-standalone:3.13.1'
+  testImplementation 'org.awaitility:awaitility:4.3.0'
+
+  testAnnotationProcessor 'org.mapstruct:mapstruct-processor:1.6.3'
+  testCompileOnly 'org.projectlombok:lombok:1.18.42'
+  testAnnotationProcessor 'org.projectlombok:lombok:1.18.42'
+  testAnnotationProcessor 'org.projectlombok:lombok-mapstruct-binding:0.2.0'
+  testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
 checkstyle {
-    toolVersion = '10.21.4'
-    configFile = file('config/checkstyle/checkstyle.xml')
-    maxWarnings = 0
+  toolVersion = '10.21.4'
+  configFile = file('config/checkstyle/checkstyle.xml')
+  maxWarnings = 0
 }
 
 tasks.withType(Checkstyle).configureEach {
-    reports {
-        html.required = true
-        xml.required = true
-    }
+  reports {
+    html.required = true
+    xml.required = true
+  }
 }
 
-test {
-    useJUnitPlatform()
+tasks.withType(Test).configureEach {
+  useJUnitPlatform()
 }
+
+tasks.named('test') {
+  finalizedBy tasks.named('jacocoTestReport')
+}
+
+tasks.register('integrationTest', Test) {
+  description = 'Runs integration tests.'
+  group = 'verification'
+  testClassesDirs = sourceSets.integrationTest.output.classesDirs
+  classpath = sourceSets.integrationTest.runtimeClasspath
+  shouldRunAfter tasks.named('test')
+  jacoco.enabled = false
+}
+
+tasks.named('jacocoTestReport', JacocoReport) {
+  dependsOn tasks.named('test')
+  executionData.setFrom(layout.buildDirectory.file('jacoco/test.exec'))
+  classDirectories.setFrom(files(sourceSets.main.output.asFileTree.matching {
+    exclude coverageExclusions
+  }))
+  reports {
+    html.required = true
+    xml.required = true
+  }
+}
+
+tasks.named('jacocoTestCoverageVerification', JacocoCoverageVerification) {
+  dependsOn tasks.named('test')
+  executionData.setFrom(layout.buildDirectory.file('jacoco/test.exec'))
+  classDirectories.setFrom(files(sourceSets.main.output.asFileTree.matching {
+    exclude coverageExclusions
+  }))
+  violationRules {
+    rule {
+      limit {
+        counter = 'LINE'
+        value = 'COVEREDRATIO'
+        minimum = 0.80
+      }
+      limit {
+        counter = 'BRANCH'
+        value = 'COVEREDRATIO'
+        minimum = 0.70
+      }
+    }
+  }
+}
+
+tasks.register('verifyIntegrationTestJacocoIsolation') {
+  description = 'Verifies that integration tests do not create JaCoCo execution data.'
+  group = 'verification'
+  dependsOn tasks.named('integrationTest')
+  doLast {
+    def integrationTestExecutionData =
+      layout.buildDirectory.file('jacoco/integrationTest.exec').get().asFile
+
+    if (integrationTestExecutionData.exists()) {
+      throw new GradleException('Integration tests must not produce JaCoCo execution data.')
+    }
+  }
+}
+
+tasks.named('check') {
+  dependsOn tasks.named('integrationTest')
+  dependsOn tasks.named('jacocoTestCoverageVerification')
+  dependsOn tasks.named('verifyIntegrationTestJacocoIsolation')
+}
+
+openApiGenerate {
+  generatorName.set('java')
+  inputSpec.set(layout.projectDirectory.file('src/main/resources/openapi/enrichment-api.yaml'))
+  outputDir.set(layout.buildDirectory.dir('generated/openapi'))
+  apiPackage.set('com.andrii.enrichment.generated.client.api')
+  modelPackage.set('com.andrii.enrichment.generated.client.model')
+  generateApiTests.set(false)
+  generateModelTests.set(false)
+  generateApiDocumentation.set(false)
+  generateModelDocumentation.set(false)
+}
+
+sourceSets.main.java.srcDir(layout.buildDirectory.dir('generated/openapi/src/main/java'))
