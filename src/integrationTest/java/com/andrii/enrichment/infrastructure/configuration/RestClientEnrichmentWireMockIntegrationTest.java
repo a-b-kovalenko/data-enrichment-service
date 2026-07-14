@@ -99,6 +99,9 @@ class RestClientEnrichmentWireMockIntegrationTest {
     assertThat(circuitBreaker.getState()).isEqualTo(CircuitBreaker.State.OPEN);
 
     wireMockServer.resetAll();
+    assertThatThrownBy(() -> adapter.enrich(request())).isInstanceOf(RetryableEnrichmentClientException.class);
+    wireMockServer.verify(0, postRequestedFor(urlEqualTo(ENRICH_PATH)));
+
     wireMockServer.stubFor(post(ENRICH_PATH).willReturn(jsonResponse(200, RESPONSE_JSON)));
 
     Awaitility.await()
