@@ -1,8 +1,8 @@
 package com.andrii.enrichment.infrastructure.persistence.adapter;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.BDDMockito.given;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.when;
 
 import com.andrii.enrichment.application.exception.DuplicateMessageException;
 import com.andrii.enrichment.domain.model.EnrichmentResult;
@@ -38,8 +38,8 @@ class ResultPersistenceAdapterTest {
     var enrichmentResult = newEnrichmentResult();
     var resultEntity = ResultEntity.builder().build();
 
-    given(resultEntityMapper.toEntity(enrichmentResult)).willReturn(resultEntity);
-    given(resultRepository.saveAndFlush(resultEntity)).willThrow(new DataIntegrityViolationException("duplicate"));
+    when(resultEntityMapper.toEntity(enrichmentResult)).thenReturn(resultEntity);
+    when(resultRepository.saveAndFlush(resultEntity)).thenThrow(new DataIntegrityViolationException("duplicate"));
 
     assertThatThrownBy(() -> resultPersistenceAdapter.save(enrichmentResult))
       .isInstanceOf(DuplicateMessageException.class)
@@ -52,10 +52,12 @@ class ResultPersistenceAdapterTest {
     var mappedEntity = ResultEntity.builder().build();
     var persistedEntity = ResultEntity.builder().id(123L).build();
 
-    given(resultEntityMapper.toEntity(enrichmentResult)).willReturn(mappedEntity);
-    given(resultRepository.saveAndFlush(mappedEntity)).willReturn(persistedEntity);
+    when(resultEntityMapper.toEntity(enrichmentResult)).thenReturn(mappedEntity);
+    when(resultRepository.saveAndFlush(mappedEntity)).thenReturn(persistedEntity);
 
-    assertThat(resultPersistenceAdapter.save(enrichmentResult))
+    var result = resultPersistenceAdapter.save(enrichmentResult);
+
+    assertThat(result)
       .extracting("logId", "enrichmentResult.messageId")
       .containsExactly(123L, MESSAGE_ID);
   }
@@ -65,10 +67,12 @@ class ResultPersistenceAdapterTest {
     var resultEntity = ResultEntity.builder().id(123L).build();
     var enrichmentResult = newEnrichmentResult();
 
-    given(resultRepository.findByMessageId(MESSAGE_ID)).willReturn(Optional.of(resultEntity));
-    given(resultEntityMapper.toDomain(resultEntity)).willReturn(enrichmentResult);
+    when(resultRepository.findByMessageId(MESSAGE_ID)).thenReturn(Optional.of(resultEntity));
+    when(resultEntityMapper.toDomain(resultEntity)).thenReturn(enrichmentResult);
 
-    assertThat(resultPersistenceAdapter.findByMessageId(MESSAGE_ID))
+    var result = resultPersistenceAdapter.findByMessageId(MESSAGE_ID);
+
+    assertThat(result)
       .isPresent()
       .get()
       .extracting("logId", "enrichmentResult.action")
@@ -77,9 +81,11 @@ class ResultPersistenceAdapterTest {
 
   @Test
   void returnsEmptyWhenMessageIdDoesNotExist() {
-    given(resultRepository.findByMessageId(MESSAGE_ID)).willReturn(Optional.empty());
+    when(resultRepository.findByMessageId(MESSAGE_ID)).thenReturn(Optional.empty());
 
-    assertThat(resultPersistenceAdapter.findByMessageId(MESSAGE_ID)).isEmpty();
+    var result = resultPersistenceAdapter.findByMessageId(MESSAGE_ID);
+
+    assertThat(result).isEmpty();
   }
 
   private EnrichmentResult newEnrichmentResult() {

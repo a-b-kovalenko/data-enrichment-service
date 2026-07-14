@@ -1,12 +1,15 @@
 package com.andrii.enrichment.application.command;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import java.time.Instant;
 import java.util.UUID;
 
 public record EnrichmentCommand(
-  UUID messageId,
-  long userId,
-  String action,
-  Instant eventTimestamp
+  @NotNull UUID messageId,
+  @Positive long userId,
+  @NotBlank String action,
+  @NotNull Instant eventTimestamp
 ) {
 }

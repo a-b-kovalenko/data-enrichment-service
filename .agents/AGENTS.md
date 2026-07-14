@@ -22,6 +22,8 @@
 - Use normal imports. Do not use fully qualified class names in signatures, implementation, or tests.
 - Use explicit imports only; wildcard imports are forbidden.
 - Use static imports for assertions, matchers, and utility methods, for example AssertJ and Mockito methods.
+- Prefer Mockito `when(...).thenReturn(...)` for stubbing.
+- Prefer Mockito `verify(...)` and `verifyNoInteractions(...)` for interaction assertions.
 - Prefer `var` for local variables when the inferred type remains obvious to a reader.
 - Extract repeated literals, section labels, and magic strings into
   `private static final` or `public static final` constants.
@@ -55,6 +57,10 @@
 - Keep nesting depth at no more than two levels.
 - Prefer AssertJ fluent assertions and `.extracting(...)` for multi-field checks. Prefer field names in
   `.extracting("fieldName", ...)` when they are available.
+- Put the command under test on a separate arrange-act-assert line, for example
+  `var result = service.enrich(command);`, before asserting its outcome.
+- Use parameterized tests when the same behavior is verified against several independent data sets; keep distinct
+  business flows and error-handling scenarios as separately named tests.
 - Use `@SneakyThrows` in tests or test helpers when it avoids boilerplate for checked exceptions.
 
 ## Delivery workflow

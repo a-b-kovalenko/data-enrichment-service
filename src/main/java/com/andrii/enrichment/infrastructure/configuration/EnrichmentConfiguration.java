@@ -5,6 +5,7 @@ import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
 import java.net.http.HttpClient;
 import java.time.Duration;
+import java.time.Clock;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -14,6 +15,11 @@ import org.springframework.web.client.RestClient;
 @Configuration
 @EnableConfigurationProperties({EnrichmentProperties.class, EnrichmentClientProperties.class})
 public class EnrichmentConfiguration {
+
+  @Bean
+  Clock clock() {
+    return Clock.systemUTC();
+  }
 
   @Bean
   EventTimestampParser eventTimestampParser(EnrichmentProperties enrichmentProperties) {
