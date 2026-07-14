@@ -5,8 +5,8 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_DB: enrichment
-      POSTGRES_USER: enrichment
-      POSTGRES_PASSWORD: enrichment
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
     ports:
       - "5432:5432"
     volumes:
@@ -32,3 +32,11 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
+
+  external-enrichment-api:
+    image: wiremock/wiremock:3.13.1
+    ports:
+      - "8081:8080"
+    volumes:
+      - ./docker/wiremock/mappings:/home/wiremock/mappings:ro
+    command: --global-response-templating

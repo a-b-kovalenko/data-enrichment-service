@@ -1,0 +1,21 @@
+{
+  "request": {
+    "method": "POST",
+    "urlPath": "/enrich",
+    "bodyPatterns": [
+      {
+        "matchesJsonPath": "$.user_id"
+      },
+      {
+        "matchesJsonPath": "$.action"
+      }
+    ]
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": "{\"user_id\": {{jsonPath request.body '$.user_id'}}, \"result\": true}"
+  }
+}

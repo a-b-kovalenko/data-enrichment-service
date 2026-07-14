@@ -1,0 +1,31 @@
+meta {
+  name: Publish input message
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{rabbitManagementUrl}}/api/exchanges/%2F/enrichment.input/publish
+  body: json
+  auth: basic
+}
+
+auth:basic {
+  username: {{rabbitUsername}}
+  password: {{rabbitPassword}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "properties": {
+      "content_type": "application/json"
+    },
+    "routing_key": "enrichment.input",
+    "payload": "{\"message_id\":\"323e4567-e89b-12d3-a456-426614174000\",\"user_id\":42,\"action\":\"request\",\"timestamp\":\"2026-07-01 10:00:00.0\"}",
+    "payload_encoding": "string"
+  }
+}
