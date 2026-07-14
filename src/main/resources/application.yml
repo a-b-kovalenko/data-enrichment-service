@@ -20,3 +20,15 @@ enrichment:
       failure-rate-threshold: ${ENRICHMENT_CLIENT_CIRCUIT_BREAKER_FAILURE_RATE_THRESHOLD:50}
       wait-duration-in-open-state: ${ENRICHMENT_CLIENT_CIRCUIT_BREAKER_WAIT_DURATION_IN_OPEN_STATE:PT5S}
       permitted-number-of-calls-in-half-open-state: ${ENRICHMENT_CLIENT_CIRCUIT_BREAKER_PERMITTED_CALLS_IN_HALF_OPEN:1}
+  messaging:
+    input-exchange: ${ENRICHMENT_INPUT_EXCHANGE:enrichment.input}
+    input-queue: ${ENRICHMENT_INPUT_QUEUE:enrichment.input.queue}
+    input-routing-key: ${ENRICHMENT_INPUT_ROUTING_KEY:enrichment.input}
+    retry-exchange: ${ENRICHMENT_RETRY_EXCHANGE:enrichment.retry}
+    retry-queue: ${ENRICHMENT_RETRY_QUEUE:enrichment.retry.queue}
+    retry-routing-key: ${ENRICHMENT_RETRY_ROUTING_KEY:enrichment.retry}
+    dead-letter-exchange: ${ENRICHMENT_DLX:enrichment.dlx}
+    dead-letter-queue: ${ENRICHMENT_DLQ:enrichment.dlq}
+    dead-letter-routing-key: ${ENRICHMENT_DLQ_ROUTING_KEY:enrichment.dlq}
+    retry-delay-milliseconds: ${ENRICHMENT_RETRY_DELAY_MILLISECONDS:5000}
+    max-retry-attempts: ${ENRICHMENT_MAX_RETRY_ATTEMPTS:3}
