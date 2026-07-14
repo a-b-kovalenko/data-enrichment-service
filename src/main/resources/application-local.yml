@@ -6,6 +6,11 @@ spring:
     url: ${ENRICHMENT_DATASOURCE_URL:jdbc:postgresql://localhost:5432/enrichment?currentSchema=enrichment_schema}
     username: ${ENRICHMENT_DATASOURCE_USERNAME:user}
     password: ${ENRICHMENT_DATASOURCE_PASSWORD:password}
+  rabbitmq:
+    host: ${ENRICHMENT_RABBITMQ_HOST:localhost}
+    port: ${ENRICHMENT_RABBITMQ_PORT:5672}
+    username: ${ENRICHMENT_RABBITMQ_USERNAME:enrichment}
+    password: ${ENRICHMENT_RABBITMQ_PASSWORD:enrichment}
   jpa:
     properties:
       hibernate:

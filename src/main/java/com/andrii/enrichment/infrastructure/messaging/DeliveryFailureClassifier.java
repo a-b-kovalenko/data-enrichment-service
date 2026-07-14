@@ -2,7 +2,7 @@ package com.andrii.enrichment.infrastructure.messaging;
 
 import com.andrii.enrichment.application.exception.NonRetryableEnrichmentClientException;
 import jakarta.validation.ConstraintViolationException;
-import org.springframework.amqp.support.converter.MessageConversionException;
+import org.springframework.messaging.converter.MessageConversionException;
 import org.springframework.messaging.handler.annotation.support.MethodArgumentNotValidException;
 import org.springframework.stereotype.Component;
 

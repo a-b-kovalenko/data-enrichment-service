@@ -131,6 +131,26 @@ docker compose ps
 PostgreSQL доступний на `localhost:5432`, RabbitMQ — на `localhost:5672`, а
 RabbitMQ Management UI — на `http://localhost:15672`.
 
+### Локальна end-to-end перевірка
+
+Compose також запускає WireMock на `http://localhost:8081`. Він імітує зовнішній
+`POST /enrich`, повертає той самий `user_id` і `result: true`.
+
+Запустіть залежності та застосунок у двох терміналах:
+
+```bash
+docker compose up -d --wait
+./gradlew bootRun --args='--spring.profiles.active=local'
+```
+
+Відкрийте папку `bruno` у Bruno, виберіть environment `local` та виконайте
+`Publish input message`. Bruno вже має RabbitMQ Management API URL, local Basic
+Auth і коректний JSON payload. Перед повторним запуском змініть `message_id` у
+полі `payload`, оскільки сервіс ідемпотентний.
+
+У логах має з'явитися `messageId`; у PostgreSQL — по одному запису в таблицях
+`result` і `outbox_event`. У фазі 7 outbox event буде також опублікований у RabbitMQ.
+
 ## Git workflow і CI
 
 - Основна гілка — `main`; прямий push заборонений.
