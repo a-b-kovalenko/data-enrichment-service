@@ -10,3 +10,13 @@ spring:
 
 enrichment:
   event-time-zone: UTC
+  client:
+    base-url: ${ENRICHMENT_CLIENT_BASE_URL:http://localhost:8081}
+    connect-timeout: ${ENRICHMENT_CLIENT_CONNECT_TIMEOUT:PT1S}
+    read-timeout: ${ENRICHMENT_CLIENT_READ_TIMEOUT:PT2S}
+    circuit-breaker:
+      sliding-window-size: ${ENRICHMENT_CLIENT_CIRCUIT_BREAKER_SLIDING_WINDOW_SIZE:4}
+      minimum-number-of-calls: ${ENRICHMENT_CLIENT_CIRCUIT_BREAKER_MINIMUM_NUMBER_OF_CALLS:2}
+      failure-rate-threshold: ${ENRICHMENT_CLIENT_CIRCUIT_BREAKER_FAILURE_RATE_THRESHOLD:50}
+      wait-duration-in-open-state: ${ENRICHMENT_CLIENT_CIRCUIT_BREAKER_WAIT_DURATION_IN_OPEN_STATE:PT5S}
+      permitted-number-of-calls-in-half-open-state: ${ENRICHMENT_CLIENT_CIRCUIT_BREAKER_PERMITTED_CALLS_IN_HALF_OPEN:1}
