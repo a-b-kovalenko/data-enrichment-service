@@ -9,10 +9,13 @@ import org.springframework.amqp.core.Binding;
 import org.springframework.amqp.core.BindingBuilder;
 import org.springframework.amqp.core.DirectExchange;
 import org.springframework.amqp.core.Queue;
+import org.springframework.amqp.rabbit.annotation.RabbitListenerConfigurer;
 import org.springframework.amqp.support.converter.JacksonJsonMessageConverter;
 import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.messaging.handler.annotation.support.DefaultMessageHandlerMethodFactory;
+import org.springframework.validation.Validator;
 
 @Configuration
 @RequiredArgsConstructor
@@ -43,6 +46,16 @@ public class EnrichmentMessagingConfiguration {
   @Bean
   MessageConverter rabbitMessageConverter() {
     return new JacksonJsonMessageConverter();
+  }
+
+  @Bean
+  RabbitListenerConfigurer rabbitListenerConfigurer(Validator validator) {
+    return registrar -> {
+      var methodFactory = new DefaultMessageHandlerMethodFactory();
+      methodFactory.setValidator(validator);
+      methodFactory.afterPropertiesSet();
+      registrar.setMessageHandlerMethodFactory(methodFactory);
+    };
   }
 
   @Bean
