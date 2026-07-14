@@ -104,6 +104,17 @@ class LiquibasePersistenceIntegrationTest {
   }
 
   @Test
+  void duplicateDoesNotCreateSecondResultOrOutboxEvent() {
+    resultOutboxPersistenceAdapter.persist(newEnrichmentResult(MESSAGE_ID));
+
+    assertThatThrownBy(() -> resultOutboxPersistenceAdapter.persist(newEnrichmentResult(MESSAGE_ID)))
+      .isInstanceOf(DuplicateMessageException.class);
+
+    assertThat(resultRepository.count()).isEqualTo(1);
+    assertThat(outboxEventRepository.count()).isEqualTo(1);
+  }
+
+  @Test
   void rollsBackResultWhenOutboxEventCannotBePersisted() {
     assertThatThrownBy(() -> resultOutboxPersistenceAdapter.persist(
       newEnrichmentResult(MESSAGE_ID),

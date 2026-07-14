@@ -7,8 +7,12 @@ import com.andrii.enrichment.application.model.EnrichmentRequest;
 import com.andrii.enrichment.application.model.EnrichmentResponse;
 import jakarta.validation.Validation;
 import java.util.UUID;
+import java.util.stream.Stream;
 import lombok.SneakyThrows;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.PropertyNamingStrategies;
@@ -84,23 +88,28 @@ class JsonContractTest {
       .isInstanceOf(UnrecognizedPropertyException.class);
   }
 
-  @Test
-  void reportsMissingAndInvalidRequiredProperties() {
-    var validatorFactory = Validation.buildDefaultValidatorFactory();
-    var validator = validatorFactory.getValidator();
-    var incomingMessage = new IncomingMessage(null, 0L, "", null);
+  @ParameterizedTest
+  @MethodSource("invalidContracts")
+  void reportsMissingAndInvalidRequiredProperties(Object contract, String[] expectedProperties) {
+    try (var validatorFactory = Validation.buildDefaultValidatorFactory()) {
+      var validator = validatorFactory.getValidator();
 
-    assertThat(validator.validate(incomingMessage))
-      .extracting(violation -> violation.getPropertyPath().toString())
-      .containsExactlyInAnyOrder("messageId", "userId", "action", "timestamp");
-    assertThat(validator.validate(new EnrichmentRequest(0L, "")))
-      .extracting(violation -> violation.getPropertyPath().toString())
-      .containsExactlyInAnyOrder("userId", "action");
-    assertThat(validator.validate(new EnrichmentResponse(-1L, null)))
-      .extracting(violation -> violation.getPropertyPath().toString())
-      .containsExactlyInAnyOrder("userId", "result");
-    assertThat(validator.validate(new OutgoingMessage(0L, null, null)))
-      .extracting(violation -> violation.getPropertyPath().toString())
-      .containsExactlyInAnyOrder("logId", "messageId", "result");
+      assertThat(validator.validate(contract))
+        .extracting(violation -> violation.getPropertyPath().toString())
+        .containsExactlyInAnyOrder(expectedProperties);
+    }
+  }
+
+  @SuppressWarnings("DataFlowIssue")
+  private static Stream<Arguments> invalidContracts() {
+    return Stream.of(
+      Arguments.of(
+        new IncomingMessage(null, 0L, "", null),
+        new String[] {"messageId", "userId", "action", "timestamp"}
+      ),
+      Arguments.of(new EnrichmentRequest(0L, ""), new String[] {"userId", "action"}),
+      Arguments.of(new EnrichmentResponse(-1L, null), new String[] {"userId", "result"}),
+      Arguments.of(new OutgoingMessage(0L, null, null), new String[] {"logId", "messageId", "result"})
+    );
   }
 }
