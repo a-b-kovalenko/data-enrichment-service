@@ -31,8 +31,16 @@
 - Use constructor injection for `final` dependencies. Field injection and field-level `@Autowired` are forbidden.
 - Prefer Lombok `@RequiredArgsConstructor` and
   `@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)` for Spring components with dependencies.
+- Define application services as interfaces. Place their Spring implementations in the corresponding `impl` package.
 - Use Lombok `@Data`, `@Builder`, `@NoArgsConstructor`, and `@AllArgsConstructor` for entities and DTOs when applicable.
 - Use Java 21+ features where they improve clarity: records, pattern matching, text blocks, and `var`.
+
+### Logging write operations
+
+- A method that writes to a database, publishes a broker message, writes a file, or invokes another write-side
+  operation must log its entry before the side effect.
+- Log only safe correlation identifiers and operation context, for example `messageId`, `logId`, or an entity ID.
+  Never log complete transport payloads or sensitive data.
 
 ### JSON contracts
 
@@ -46,15 +54,23 @@
 
 - Keep cyclomatic complexity low. Extract loops, branching, and nested blocks into descriptively named private methods.
 - Keep nesting depth at no more than two levels.
-- Prefer AssertJ fluent assertions and `.extracting(...)` for multi-field checks.
+- Prefer AssertJ fluent assertions and `.extracting(...)` for multi-field checks. Prefer field names in
+  `.extracting("fieldName", ...)` when they are available.
 - Use `@SneakyThrows` in tests or test helpers when it avoids boilerplate for checked exceptions.
 
 ## Delivery workflow
 
 1. Implement one coherent item from the active phase.
 2. Add or update the tests specified for that item.
-3. Run the smallest relevant Gradle task first.
-4. Before declaring a phase complete, run:
+3. After every completed logical Java, Gradle, configuration, or test change, run:
+
+   ```bash
+   ./gradlew --no-daemon clean build
+   ```
+
+   Resolve every failure before continuing with the next logical change.
+4. During diagnosis, run the smallest relevant Gradle task first.
+5. Before declaring a phase complete, run:
 
    ```bash
    ./gradlew clean test
@@ -63,7 +79,7 @@
    ./gradlew check
    ```
 
-5. Report changed files, executed checks, and any unresolved constraint.
+6. Report changed files, executed checks, and any unresolved constraint.
 
 `check` must depend on unit tests, integration tests, and JaCoCo verification.
 
@@ -111,8 +127,8 @@ docs/adr                      Architecture Decision Records
 - JaCoCo must collect execution data only from `test`; disable it for `integrationTest`.
 - Integration-test execution data must not appear in JaCoCo reports or verification.
 - Enforce at least 80% line and 70% branch coverage for eligible production code.
-- Exclude only generated OpenAPI code, application bootstrap, pure configuration, simple transport DTOs,
-  and JPA entities. Do not exclude business services, mapper implementations, listeners, or outbox publishers.
+- Exclude only generated code, application bootstrap, pure configuration, simple transport DTOs, JPA entities,
+  and MapStruct mapper implementations. Do not exclude business services, listeners, or outbox publishers.
 - Use Awaitility for asynchronous assertions. Do not use `Thread.sleep` in tests.
 
 ## Architecture and transaction rules
@@ -158,7 +174,7 @@ docs/adr                      Architecture Decision Records
 
 - PostgreSQL schema changes must be Liquibase XML changelogs under `src/main/resources/db/changelog`.
 - The master XML changelog contains includes only.
-- Each migration uses SQL inside `<sql>` and explicit SQL inside `<rollback>`.
+- Each migration uses SQL inside `<sql>`. Do not add Liquibase rollback blocks.
   Do not use Liquibase schema DSL tags such as `createTable`, `addColumn`, or `createIndex`.
 - Use `CDATA` only when SQL contains XML-reserved characters such as `<`, `>`, or `&`.
 - Do not use Hibernate `ddl-auto` to create schema. Test profiles validate the Liquibase-created schema.
