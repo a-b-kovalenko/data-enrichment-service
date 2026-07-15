@@ -20,4 +20,14 @@ public interface OutboxEventRepository extends JpaRepository<OutboxEventEntity, 
     @Param("status") OutboxEventStatus status,
     @Param("nextAttemptAt") Instant nextAttemptAt
   );
+
+  @Query(value = """
+    SELECT * FROM outbox_event
+    WHERE status = 'PENDING'
+      AND next_attempt_at <= :now
+    ORDER BY next_attempt_at, id
+    LIMIT :batchSize
+    FOR UPDATE SKIP LOCKED
+    """, nativeQuery = true)
+  List<OutboxEventEntity> lockReadyForPublishing(@Param("now") Instant now, @Param("batchSize") int batchSize);
 }

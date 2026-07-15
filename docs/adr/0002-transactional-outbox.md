@@ -10,10 +10,11 @@ rolled back.
 ## Decision
 
 Store `result` and a `PENDING` `outbox_event` in the same short database transaction. The external
-enrichment HTTP call remains outside that transaction. A separate publisher will read committed
-outbox records and publish them to RabbitMQ, marking an event as published only after broker
-confirmation. The `message_id` unique constraint provides the final idempotency guard for the
-incoming delivery.
+enrichment HTTP call remains outside that transaction. A scheduled publisher claims ready records
+with `FOR UPDATE SKIP LOCKED`, publishes them with mandatory routing and broker confirms, and marks
+them `PUBLISHED` only after confirmation. Failed publishes receive exponential backoff; exhausted
+events become `FAILED`. The `message_id` unique constraint provides the final idempotency guard for
+the incoming delivery.
 
 ## Alternatives
 
@@ -23,6 +24,7 @@ incoming delivery.
 
 ## Consequences
 
-The database provides an atomic durable handoff from the application flow to the future publisher.
-The publisher, retry state and operational monitoring add implementation complexity. Delivery is
-at least once, so consumers of the output event must tolerate duplicates.
+The database provides an atomic durable handoff from the application flow to the publisher. The
+publisher, retry state and operational monitoring add implementation complexity. Delivery is at
+least once: a process failure after broker confirmation but before the database update can repeat
+an output event, so consumers must tolerate duplicates by `message_id`.

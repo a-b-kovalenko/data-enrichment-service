@@ -7,6 +7,9 @@ spring:
       fail-on-unknown-properties: true
   liquibase:
     change-log: classpath:/db/changelog/db.changelog-master.xml
+  rabbitmq:
+    publisher-confirm-type: correlated
+    publisher-returns: true
 
 enrichment:
   event-time-zone: UTC
@@ -32,3 +35,14 @@ enrichment:
     dead-letter-routing-key: ${ENRICHMENT_DLQ_ROUTING_KEY:enrichment.dlq}
     retry-delay-milliseconds: ${ENRICHMENT_RETRY_DELAY_MILLISECONDS:5000}
     max-retry-attempts: ${ENRICHMENT_MAX_RETRY_ATTEMPTS:3}
+  outbox:
+    publisher-enabled: ${ENRICHMENT_OUTBOX_PUBLISHER_ENABLED:true}
+    output-exchange: ${ENRICHMENT_OUTPUT_EXCHANGE:enrichment.output}
+    output-routing-key: ${ENRICHMENT_OUTPUT_ROUTING_KEY:enrichment.output}
+    batch-size: ${ENRICHMENT_OUTBOX_BATCH_SIZE:20}
+    publish-delay: ${ENRICHMENT_OUTBOX_PUBLISH_DELAY:PT1S}
+    confirm-timeout: ${ENRICHMENT_OUTBOX_CONFIRM_TIMEOUT:PT5S}
+    claim-duration: ${ENRICHMENT_OUTBOX_CLAIM_DURATION:PT30S}
+    initial-backoff: ${ENRICHMENT_OUTBOX_INITIAL_BACKOFF:PT5S}
+    max-backoff: ${ENRICHMENT_OUTBOX_MAX_BACKOFF:PT5M}
+    max-attempts: ${ENRICHMENT_OUTBOX_MAX_ATTEMPTS:10}

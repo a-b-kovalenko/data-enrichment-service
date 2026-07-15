@@ -16,7 +16,8 @@ import org.springframework.web.client.RestClient;
 @EnableConfigurationProperties({
   EnrichmentProperties.class,
   EnrichmentClientProperties.class,
-  EnrichmentMessagingProperties.class
+  EnrichmentMessagingProperties.class,
+  OutboxPublisherProperties.class
 })
 public class EnrichmentConfiguration {
 

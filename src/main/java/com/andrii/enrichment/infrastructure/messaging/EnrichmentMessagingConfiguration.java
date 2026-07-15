@@ -1,6 +1,7 @@
 package com.andrii.enrichment.infrastructure.messaging;
 
 import com.andrii.enrichment.infrastructure.configuration.EnrichmentMessagingProperties;
+import com.andrii.enrichment.infrastructure.configuration.OutboxPublisherProperties;
 import java.util.Map;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +28,7 @@ public class EnrichmentMessagingConfiguration {
   static final String MESSAGE_TTL_ARGUMENT = "x-message-ttl";
 
   EnrichmentMessagingProperties properties;
+  OutboxPublisherProperties outboxPublisherProperties;
 
   @Bean
   DirectExchange inputExchange() {
@@ -41,6 +43,11 @@ public class EnrichmentMessagingConfiguration {
   @Bean
   DirectExchange deadLetterExchange() {
     return new DirectExchange(properties.deadLetterExchange());
+  }
+
+  @Bean
+  DirectExchange outputExchange() {
+    return new DirectExchange(outboxPublisherProperties.outputExchange());
   }
 
   @Bean
