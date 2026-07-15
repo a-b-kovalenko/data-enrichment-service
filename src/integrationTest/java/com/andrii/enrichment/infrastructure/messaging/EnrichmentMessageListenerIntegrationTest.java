@@ -11,6 +11,8 @@ import com.andrii.enrichment.application.exception.RetryableEnrichmentClientExce
 import com.andrii.enrichment.application.service.EnrichmentContractService;
 import com.andrii.enrichment.application.service.EnrichmentService;
 import com.andrii.enrichment.infrastructure.messaging.dto.IncomingMessage;
+import com.andrii.enrichment.infrastructure.support.AbstractPostgresIntegrationTest;
+import com.andrii.enrichment.infrastructure.support.RabbitMqTestSupport;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
@@ -30,7 +32,6 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.containers.RabbitMQContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -38,15 +39,12 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @SpringBootTest
 @ActiveProfiles("integration-test")
 @Testcontainers
-class EnrichmentMessageListenerIntegrationTest {
+class EnrichmentMessageListenerIntegrationTest extends AbstractPostgresIntegrationTest {
 
   private static final String DEAD_LETTER_QUEUE = "enrichment.dlq";
   private static final String INPUT_EXCHANGE = "enrichment.input";
   private static final String INPUT_ROUTING_KEY = "enrichment.input";
   private static final UUID MESSAGE_ID = UUID.fromString("423e4567-e89b-12d3-a456-426614174000");
-
-  @Container
-  private static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine");
 
   @Container
   private static final RabbitMQContainer RABBIT_MQ = new RabbitMQContainer("rabbitmq:4-management-alpine");
@@ -65,22 +63,15 @@ class EnrichmentMessageListenerIntegrationTest {
 
   @DynamicPropertySource
   static void configureProperties(DynamicPropertyRegistry registry) {
-    registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
-    registry.add("spring.datasource.username", POSTGRES::getUsername);
-    registry.add("spring.datasource.password", POSTGRES::getPassword);
-    registry.add("spring.rabbitmq.host", RABBIT_MQ::getHost);
-    registry.add("spring.rabbitmq.port", RABBIT_MQ::getAmqpPort);
-    registry.add("spring.rabbitmq.username", RABBIT_MQ::getAdminUsername);
-    registry.add("spring.rabbitmq.password", RABBIT_MQ::getAdminPassword);
+    RabbitMqTestSupport.registerContainerProperties(registry, RABBIT_MQ);
     registry.add("spring.rabbitmq.listener.simple.auto-startup", () -> true);
-    registry.add("enrichment.messaging.retry-delay-milliseconds", () -> 100);
   }
 
   @BeforeEach
   void clearQueues() {
-    rabbitAdmin.purgeQueue("enrichment.input.queue", true);
-    rabbitAdmin.purgeQueue("enrichment.retry.queue", true);
-    rabbitAdmin.purgeQueue(DEAD_LETTER_QUEUE, true);
+    RabbitMqTestSupport.purgeQueues(
+      rabbitAdmin, "enrichment.input.queue", "enrichment.retry.queue", DEAD_LETTER_QUEUE
+    );
   }
 
   @Test

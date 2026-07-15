@@ -4,11 +4,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.andrii.enrichment.infrastructure.configuration.EnrichmentMessagingProperties;
 import com.andrii.enrichment.infrastructure.configuration.OutboxPublisherProperties;
+import com.andrii.enrichment.infrastructure.support.RabbitMqTestSupport;
 import com.rabbitmq.client.ConnectionFactory;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import org.awaitility.Awaitility;
 import org.jspecify.annotations.NonNull;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.amqp.rabbit.connection.CachingConnectionFactory;
@@ -28,14 +30,21 @@ class RabbitMqTopologyIntegrationTest {
   private static final RabbitMQContainer RABBIT_MQ = new RabbitMQContainer("rabbitmq:4-management-alpine");
 
   private RabbitAdmin rabbitAdmin;
+  private CachingConnectionFactory connectionFactory;
 
   @BeforeEach
   void setUp() {
-    var connectionFactory = new CachingConnectionFactory(RABBIT_MQ.getHost(), RABBIT_MQ.getAmqpPort());
+    connectionFactory = new CachingConnectionFactory(RABBIT_MQ.getHost(), RABBIT_MQ.getAmqpPort());
     connectionFactory.setUsername(RABBIT_MQ.getAdminUsername());
     connectionFactory.setPassword(RABBIT_MQ.getAdminPassword());
     rabbitAdmin = new RabbitAdmin(connectionFactory);
     declareTopology();
+    RabbitMqTestSupport.purgeQueues(rabbitAdmin, INPUT_QUEUE, "enrichment.retry.queue", "enrichment.dlq");
+  }
+
+  @AfterEach
+  void tearDown() {
+    connectionFactory.destroy();
   }
 
   @Test

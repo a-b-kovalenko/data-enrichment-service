@@ -8,6 +8,8 @@ import com.andrii.enrichment.infrastructure.persistence.OutboxEventClaimService;
 import com.andrii.enrichment.infrastructure.persistence.entity.OutboxEventEntity;
 import com.andrii.enrichment.infrastructure.persistence.entity.OutboxEventStatus;
 import com.andrii.enrichment.infrastructure.persistence.repository.OutboxEventRepository;
+import com.andrii.enrichment.infrastructure.support.AbstractPostgresIntegrationTest;
+import com.andrii.enrichment.infrastructure.support.RabbitMqTestSupport;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
@@ -25,7 +27,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.containers.RabbitMQContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -33,15 +34,12 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @SpringBootTest
 @ActiveProfiles("integration-test")
 @Testcontainers
-class OutboxPublisherIntegrationTest {
+class OutboxPublisherIntegrationTest extends AbstractPostgresIntegrationTest {
 
   private static final Instant NOW = Instant.parse("2026-07-01T10:00:00Z");
   private static final String OUTPUT_EXCHANGE = "enrichment.output";
   private static final String OUTPUT_QUEUE = "enrichment.output.queue";
   private static final String OUTPUT_ROUTING_KEY = "enrichment.output";
-
-  @Container
-  private static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine");
 
   @Container
   private static final RabbitMQContainer RABBIT_MQ = new RabbitMQContainer("rabbitmq:4-management-alpine");
@@ -66,13 +64,7 @@ class OutboxPublisherIntegrationTest {
 
   @DynamicPropertySource
   static void configureProperties(DynamicPropertyRegistry registry) {
-    registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
-    registry.add("spring.datasource.username", POSTGRES::getUsername);
-    registry.add("spring.datasource.password", POSTGRES::getPassword);
-    registry.add("spring.rabbitmq.host", RABBIT_MQ::getHost);
-    registry.add("spring.rabbitmq.port", RABBIT_MQ::getAmqpPort);
-    registry.add("spring.rabbitmq.username", RABBIT_MQ::getAdminUsername);
-    registry.add("spring.rabbitmq.password", RABBIT_MQ::getAdminPassword);
+    RabbitMqTestSupport.registerContainerProperties(registry, RABBIT_MQ);
   }
 
   @BeforeEach
@@ -83,7 +75,7 @@ class OutboxPublisherIntegrationTest {
     rabbitAdmin.declareExchange(exchange);
     rabbitAdmin.declareQueue(queue);
     rabbitAdmin.declareBinding(BindingBuilder.bind(queue).to(exchange).with(OUTPUT_ROUTING_KEY));
-    rabbitAdmin.purgeQueue(OUTPUT_QUEUE, true);
+    RabbitMqTestSupport.purgeQueues(rabbitAdmin, OUTPUT_QUEUE);
   }
 
   @Test
