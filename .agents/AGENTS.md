@@ -2,7 +2,7 @@
 
 ## Source of truth
 
-- Read `.workspace/tz.md` before implementing a feature.
+- Read `docs/tz.md` before implementing a feature.
 - Follow the phased delivery plan in `.workspace/implementation-plan.md`.
 - Do not begin a later phase until the current phase's tests and completion criteria pass.
 - Preserve existing user changes. Do not use destructive Git commands.
