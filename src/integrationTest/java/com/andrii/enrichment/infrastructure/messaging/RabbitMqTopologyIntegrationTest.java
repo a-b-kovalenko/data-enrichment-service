@@ -13,6 +13,7 @@ import org.jspecify.annotations.NonNull;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.amqp.core.Message;
 import org.springframework.amqp.rabbit.connection.CachingConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitAdmin;
 import org.testcontainers.containers.RabbitMQContainer;
@@ -75,10 +76,15 @@ class RabbitMqTopologyIntegrationTest {
     var payload = "dead-letter";
     rabbitAdmin.getRabbitTemplate().convertAndSend("enrichment.dlx", "enrichment.dlq", payload);
 
-    var message = rabbitAdmin.getRabbitTemplate().receive("enrichment.dlq", 1_000);
+    var message = new Message[1];
+    Awaitility.await()
+      .atMost(Duration.ofSeconds(5))
+      .untilAsserted(() -> {
+        message[0] = rabbitAdmin.getRabbitTemplate().receive("enrichment.dlq", 100);
+        assertThat(message[0]).isNotNull();
+      });
 
-    assertThat(message).isNotNull();
-    assertThat(new String(message.getBody(), StandardCharsets.UTF_8)).isEqualTo(payload);
+    assertThat(new String(message[0].getBody(), StandardCharsets.UTF_8)).isEqualTo(payload);
   }
 
   private void rejectInputMessage() {
