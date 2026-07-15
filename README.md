@@ -1,34 +1,47 @@
 # Data Enrichment Service
 
-Data Enrichment Service отримує команду з RabbitMQ, викликає зовнішній REST API,
-зберігає збагачений результат у PostgreSQL і публікує підсумкову подію в RabbitMQ.
-Усі transport-контракти використовують `snake_case`.
+Data Enrichment Service — це мікросервіс, який отримує вхідні події через RabbitMQ, збагачує їх за допомогою виклику зовнішнього REST API, атомарно зберігає результати в PostgreSQL та гарантовано публікує вихідні події назад до RabbitMQ.
 
-Початкове технічне завдання: [docs/tz.md](docs/tz.md).
+Усі транспортні контракти сервісу суворо дотримуються стандарту найменування полів `snake_case`.
 
-## Flow і транзакційна модель
+Оригінальне технічне завдання знаходиться тут: [docs/tz.md](docs/tz.md).
 
-```text
-RabbitMQ input
-    → validation
-    → external enrichment API
-    → PostgreSQL: result + outbox_event (одна транзакція)
-    → RabbitMQ output
-```
+## Архітектура та патерни
 
-HTTP-виклик завершується до відкриття короткої DB-транзакції. У транзакції разом
-створюються `result` і `outbox_event`; тільки committed outbox event може бути
-опублікований scheduler-ом. `PUBLISHED` встановлюється тільки після RabbitMQ broker
-confirm. Це усуває втрату події між DB commit і broker publish.
+Проєкт побудовано на основі **Hexagonal Architecture (Ports and Adapters)** у межах єдиного Gradle-модуля. Залежності суворо спрямовані від периферії до центру:
+`infrastructure → application → domain`
 
-Повторна доставка того самого `message_id` не створює другого `result` або outbox
-event. Delivery має семантику at-least-once, тому downstream consumer повинен
-дедуплікувати output event за `message_id`.
+1. **Domain**: Містить чисті, технологічно-незалежні бізнес-моделі.
+2. **Application**: Описує use cases, команди та порти-інтерфейси.
+3. **Infrastructure**: Надає конкретні реалізації адаптерів (JPA для PostgreSQL, RabbitMQ, Spring `RestClient`).
 
-### Контракти
+Це дозволяє бізнес-логіці залишатися ізольованою та протестованою незалежно від БД чи брокера повідомлень.
 
-Input (`enrichment.input`):
+### Транзакційна модель та Transactional Outbox
 
+Процес обробки повідомлення є транзакційно безпечним:
+1. HTTP-виклик до зовнішнього API виконується **до** відкриття транзакції бази даних.
+2. У межах однієї короткотривалої DB-транзакції відбувається запис збагаченого `result` та супутнього `outbox_event`.
+3. Окремий фоновий планувальник (scheduler) публікує `outbox_event` у RabbitMQ. Подія отримує статус `PUBLISHED` лише після отримання підтвердження від брокера (broker confirm).
+
+Цей підхід повністю виключає втрату подій між етапами коміту в БД та публікації повідомлення.
+
+### Ідемпотентність та гарантії доставки
+
+Сервіс використовує семантику **at-least-once delivery**. Ідемпотентність забезпечується унікальним ідентифікатором `message_id`. Повторна доставка раніше обробленого повідомлення не призведе до дублювання `result` чи `outbox_event`. Downstream-консьюмери (наступні сервіси) зобов'язані самостійно дедуплікувати події на основі `message_id`.
+
+### RabbitMQ Топологія та відмовостійкість
+
+Сервіс використовує просунуту топологію RabbitMQ з чітким розділенням помилок на відновлювані (retryable) та невідновлювані (non-retryable):
+
+- **Невідновлювані помилки** (некоректний JSON, помилки валідації, HTTP 4xx, логічні помилки контракту): Одразу маршрутизуються до `enrichment.dlq` (Dead-Letter Queue). 
+- **Відновлювані помилки** (проблеми мережі, DB constraints, HTTP 5xx, тайм-аути, відкритий Circuit Breaker): Маршрутизуються до `enrichment.retry.queue`. Після закінчення TTL-затримки подія повертається в основну чергу для повторної обробки. Максимальна кількість спроб обмежена, після чого подія потрапляє до DLQ.
+
+Для захисту зовнішніх API застосовується **Resilience4j Circuit Breaker**. Важливо: HTTP-клієнт не виконує внутрішніх повторів (retry). Натомість всі механізми повтору делегуються RabbitMQ, щоб уникнути блокування потоків виконання.
+
+## Формати даних (Контракти)
+
+**Вхідне повідомлення (`enrichment.input`):**
 ```json
 {
   "message_id": "423e4567-e89b-12d3-a456-426614174000",
@@ -38,11 +51,15 @@ Input (`enrichment.input`):
 }
 ```
 
-External API: `POST /enrich` із `{"user_id":42,"action":"request"}`; відповідь:
-`{"user_id":42,"result":true}`. `user_id` у відповіді має збігатися з запитом.
+**Відповідь від зовнішнього API (`POST /enrich`):**
+```json
+{
+  "user_id": 42,
+  "result": true
+}
+```
 
-Output (`enrichment.output`):
-
+**Вихідне повідомлення (`enrichment.output`):**
 ```json
 {
   "log_id": 1,
@@ -50,216 +67,68 @@ Output (`enrichment.output`):
   "result": true
 }
 ```
+*(де `log_id` відповідає первинному ключу таблиці `result`)*
 
-`log_id` дорівнює `result.id`.
+## Технологічний стек
 
-## Архітектура
+- **Core**: Java 21, Spring Boot 4.x, Gradle
+- **Data & Messaging**: PostgreSQL, RabbitMQ, Spring AMQP, Spring Data JPA, Liquibase
+- **Mapping**: MapStruct, Lombok
+- **Resilience**: Resilience4j Circuit Breaker
+- **Testing**: JUnit 5, Mockito, Testcontainers, WireMock, Awaitility, JaCoCo, Checkstyle
 
-- Spring Boot 4.x і Java 21.
-- RabbitMQ для input, retry, DLQ та output topology.
-- PostgreSQL і Liquibase XML changelog-и з PostgreSQL SQL у `<sql>` блоках.
-- Transactional outbox: `result` і `outbox_event` створюються в одній транзакції.
-- Idempotency через унікальний `message_id`.
-- At-least-once delivery для output events; downstream consumers мають дедуплікувати події.
-- OpenAPI використовуватимемо лише для власних HTTP endpoint-ів, якщо вони з'являться.
-- Resilience4j Circuit Breaker для зовнішнього API; retry delivery виконує RabbitMQ,
-  а не HTTP-клієнт.
+## Інструкція для локального запуску
 
-Застосунок використовує Ports and Adapters (Hexagonal) архітектуру в межах одного
-Gradle-модуля:
+Для розгортання проєкту потрібні Java 21 та Docker Compose.
 
-```text
-RabbitMQ / HTTP / PostgreSQL
-            │
-            ▼
-    infrastructure adapters
-            │
-            ▼
- application services + ports
-            │
-            ▼
-       domain models
-```
+1. **Ініціалізація конфігурації:**
+   ```bash
+   cp .env.example .env
+   ```
+   У файлі `.env` задайте абсолютний шлях для `PROJECT_DATA_DIR` (в цю папку будуть змонтовані дані БД та RabbitMQ).
 
-- `domain` містить незалежні від технологій бізнес-моделі та правила.
-- `application` містить use cases, команди, application mapper-и й порти-інтерфейси.
-- `infrastructure` містить конкретні адаптери для JPA/PostgreSQL, RabbitMQ, HTTP і Spring.
+2. **Запуск інфраструктури (PostgreSQL, RabbitMQ, WireMock):**
+   ```bash
+   docker compose up -d --wait
+   ```
 
-Залежності спрямовані всередину: `infrastructure → application → domain`.
-Наприклад, application service залежить від `ResultPersistencePort`, а
-`ResultPersistenceAdapter` реалізує цей порт через JPA та PostgreSQL. Завдяки цьому
-business-flow не залежить від JPA чи RabbitMQ і тестується через mock портів.
+3. **Запуск застосунку:**
+   Запустіть `DataEnrichmentServiceApplication` з активним Spring-профілем `local`.
 
-### RabbitMQ topology та помилки
+### Налаштування вихідної черги (Smoke Testing)
 
-```text
-                           ┌───────────────────────────┐
-                           │ enrichment.input exchange │
-                           └─────────────┬─────────────┘
-                                         │ enrichment.input
-                                         ▼
-                           enrichment.input.queue → listener
-                                  │                    │ success
-                   retryable      │                    ▼
-                                  ▼          PostgreSQL: result + outbox_event
-                    enrichment.retry exchange                    │
-                                  │ enrichment.retry             ▼
-                                  ▼                 outbox publisher + broker confirm
-                    enrichment.retry.queue (TTL)                 │
-                                  │ DLX after delay              ▼
-                                  └───────────────► enrichment.output exchange
-                                                       (downstream bindings)
-
-non-retryable or retry limit → enrichment.dlx → enrichment.dlq
-```
-
-Input, retry і dead-letter exchanges працюють як точні маршрутизатори: exchange
-порівнює routing key повідомлення з ключем queue і передає його за потрібною
-“адресою”. Нові повідомлення з ключем `enrichment.input` потрапляють до
-`enrichment.input.queue`, де їх обробляє listener.
-
-Якщо помилка тимчасова, RabbitMQ переносить повідомлення у
-`enrichment.retry.queue`. Там воно чекає `ENRICHMENT_RETRY_DELAY_MILLISECONDS`
-(за замовчуванням 5 секунд), а потім повертається в input queue для нової спроби.
-Після `ENRICHMENT_MAX_RETRY_ATTEMPTS` (за замовчуванням 3) повідомлення потрапляє
-в `enrichment.dlq`; разом це первинна спроба і до трьох повторів.
-
-Некоректний JSON, validation error, HTTP 4xx або неправильна відповідь API одразу
-йдуть у DLQ: повторення не може виправити дані. HTTP 5xx, timeout, проблеми мережі
-або БД та відкритий Circuit Breaker вважаються тимчасовими, тому сервіс повторить
-обробку пізніше. HTTP-клієнт сам не робить повторів — одну delivery обробляють один
-раз, а всі повтори виконує RabbitMQ.
-
-Після DB commit scheduler вибирає ready outbox events і публікує їх у
-`enrichment.output` з routing key `enrichment.output`. Це exchange для розсилки, а
-не одна спільна черга: кожен сервіс-отримувач створює власну durable queue і
-підключає її до `enrichment.output`. Так кожен отримувач отримує свою копію події.
-
-Event стає `PUBLISHED` лише коли RabbitMQ підтвердив, що прийняв повідомлення і
-знайшов для нього такий маршрут. Якщо немає підключеної queue або broker тимчасово
-недоступний, event лишається `PENDING`, а publisher повторить його з окремим backoff.
-
-Докладні рішення: [архітектура](docs/adr/0001-architecture-style.md),
-[outbox](docs/adr/0002-transactional-outbox.md),
-[Circuit Breaker](docs/adr/0003-external-api-circuit-breaker.md),
-[idempotency](docs/adr/0004-idempotency-and-delivery-semantics.md),
-[retry/DLQ](docs/adr/0005-rabbitmq-retry-and-dead-letter-queue.md).
-
-## Технології
-
-- Java 21, Gradle, Spring Boot 4.x;
-- Spring AMQP, Spring Data JPA, Spring Web `RestClient`;
-- PostgreSQL, RabbitMQ, Liquibase;
-- Lombok, MapStruct;
-- JUnit 5, Mockito, Testcontainers, WireMock, Awaitility;
-- JaCoCo, Checkstyle, GitHub Actions.
-
-## Запуск локально
-
-Потрібні Java 21, Docker Compose і Bruno (лише для ручного smoke test).
-
-```bash
-cp .env.example .env
-docker compose up -d --wait
-```
-
-У `.env` задайте абсолютний `PROJECT_DATA_DIR`; файл містить лише локальний шлях і
-не комітиться. Compose піднімає PostgreSQL 16 (`localhost:5432`), RabbitMQ
-(`localhost:5672`, UI `http://localhost:15672`) та WireMock (`http://localhost:8081`).
-Облікові дані локального compose: PostgreSQL `user` / `password`, RabbitMQ
-`enrichment` / `enrichment`.
-
-Запустіть `DataEnrichmentServiceApplication` з профілем `local`. Конфігурація
-підтримує environment variables: `ENRICHMENT_DATASOURCE_*`, `ENRICHMENT_RABBITMQ_*`,
-`ENRICHMENT_CLIENT_BASE_URL`, `ENRICHMENT_INPUT_*`, `ENRICHMENT_OUTBOX_*` та інші
-властивості з [application.yml](src/main/resources/application.yml). Секрети в
-репозиторії відсутні; показані значення призначені тільки для локального Compose.
-
-Для ручного smoke flow відкрийте `bruno`, виберіть environment `local` і виконайте
-`Publish input message`. Перед повтором змініть `message_id`.
-
-### Локальна output queue
-
-Сервіс публікує результат в exchange `enrichment.output`, але не створює queue для
-отримувача. Перед локальним smoke flow створіть у RabbitMQ Management UI durable
-queue `enrichment.output.local.queue` і додайте binding:
-
-- source exchange: `enrichment.output`;
-- destination queue: `enrichment.output.local.queue`;
-- routing key: `enrichment.output`.
-
-Або виконайте в терміналі:
+Сервіс створює вихідний exchange (`enrichment.output`), але не створює чергу консьюмера. Щоб відстежувати результати обробки, вам потрібно задекларувати тестову чергу:
 
 ```bash
 docker compose exec -T rabbitmq rabbitmqadmin -H localhost -u enrichment -p enrichment \
   declare queue --name enrichment.output.local.queue --durable true --auto-delete false
+
 docker compose exec -T rabbitmq rabbitmqadmin -H localhost -u enrichment -p enrichment \
   declare binding --source enrichment.output --destination-type queue \
   --destination enrichment.output.local.queue --routing-key enrichment.output
 ```
 
-Після цього опубліковані output events з'являться в цій queue. Без binding RabbitMQ
-не зможе маршрутизувати подію, тому outbox event лишатиметься `PENDING` і буде
-повторений publisher-ом.
+Панель управління RabbitMQ доступна за адресою `http://localhost:15672` (облікові дані: `enrichment` / `enrichment`).
 
-## Тести і quality gate
+## Тестування та Quality Gate
 
-```bash
-./gradlew --no-daemon clean test
-./gradlew --no-daemon integrationTest
-./gradlew --no-daemon jacocoTestReport jacocoTestCoverageVerification
-./gradlew --no-daemon clean check
-```
-
-Команда `check` є обов'язковим quality gate та в CI запускатиме:
-
-- Checkstyle для Java-коду;
-- unit-тести з `src/test`;
-- integration-тести з `src/integrationTest`;
-- JaCoCo coverage verification лише за unit-тестами.
-
-Цільові пороги JaCoCo: не менше 80% line coverage і 70% branch coverage
-для eligible production code.
-Integration-тести не впливають на JaCoCo coverage.
-
-Integration-тести піднімають PostgreSQL і RabbitMQ у Testcontainers та WireMock для
-external API. `EnrichmentFlowIntegrationTest` перевіряє повний шлях input → HTTP →
-`result` + outbox → output, повторну delivery, retry після API 5xx, DLQ для 4xx та
-malformed input, а також recovery нерозісланого outbox event. Integration tests не
-входять у JaCoCo execution data.
-
-Докладне пояснення кожного integration scenario: [Integration Test Guide](docs/testing/integration-tests.md).
-Практична діагностика: [Operations Runbook](docs/operations.md).
-Довідник environment variables і tuning: [Configuration Reference](docs/configuration.md).
-
-## Стиль коду
-
-- 2 пробіли для Java, XML, YAML і JSON;
-- максимум 120 символів у рядку;
-- explicit imports без wildcard imports і FQCN у Java-коді;
-- constructor injection; field injection заборонений;
-- JSON поля — тільки `snake_case`;
-- технічні коментарі та JavaDoc — англійською.
-
-Повні правила: [.agents/AGENTS.md](.agents/AGENTS.md).
-
-## Git workflow і CI
-
-- Основна гілка — `main`; прямий push заборонений.
-- Зміни потрапляють у `main` лише через pull request.
-- CI запускає `./gradlew --no-daemon clean check` для pull request у `main`.
-- Versioned pre-push hook блокує оновлення та видалення `main` і `master`.
-
-Після клонування активуйте hook:
+Всі pull requests проходять через суворий quality gate. Повне покриття тестами гарантує стабільність бізнес-логіки.
 
 ```bash
-git config --local core.hooksPath .githooks
+./gradlew --no-daemon clean test                  # Виконання Unit-тестів
+./gradlew --no-daemon integrationTest             # Виконання інтеграційних тестів
+./gradlew --no-daemon clean check                 # Виконання повного пайплайну (Checkstyle + тести)
 ```
 
-Інструкція з GitHub branch ruleset: [docs/github-setup.md](docs/github-setup.md).
+**Вимоги покриття коду (JaCoCo):**
+- Line coverage: $\ge$ 80%
+- Branch coverage: $\ge$ 70%
+*(Увага: інтеграційні тести свідомо виключені з розрахунку покриття).*
 
-## Стан проєкту
+## Git Workflow
 
-Завершено фази 1–9: фундамент, контракти, persistence, HTTP client із Circuit
-Breaker, idempotent application flow, RabbitMQ listener із retry/DLQ,
-transactional outbox publisher, повний E2E integration flow і фінальна документація.
+- Зміни до основної гілки `main` вносяться виключно через механізм **Pull Request**. Прямі пуші заблоковані.
+- Активуйте локальні pre-push хуки відразу після клонування репозиторію:
+  ```bash
+  git config --local core.hooksPath .githooks
+  ```
