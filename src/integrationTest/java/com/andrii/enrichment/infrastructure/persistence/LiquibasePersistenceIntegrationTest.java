@@ -13,6 +13,7 @@ import com.andrii.enrichment.infrastructure.persistence.entity.OutboxEventEntity
 import com.andrii.enrichment.infrastructure.persistence.entity.OutboxEventStatus;
 import com.andrii.enrichment.infrastructure.persistence.repository.OutboxEventRepository;
 import com.andrii.enrichment.infrastructure.persistence.repository.ResultRepository;
+import com.andrii.enrichment.infrastructure.support.AbstractPostgresIntegrationTest;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.UUID;
@@ -22,23 +23,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 @SpringBootTest
 @ActiveProfiles("integration-test")
-@Testcontainers
-class LiquibasePersistenceIntegrationTest {
+class LiquibasePersistenceIntegrationTest extends AbstractPostgresIntegrationTest {
 
   private static final Instant CREATED_AT = Instant.parse("2026-07-01T10:00:01Z");
   private static final Instant EVENT_TIMESTAMP = Instant.parse("2026-07-01T10:00:00Z");
   private static final UUID MESSAGE_ID = UUID.fromString("123e4567-e89b-12d3-a456-426614174000");
-
-  @Container
-  private static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine");
 
   @Autowired
   private JdbcTemplate jdbcTemplate;
@@ -54,13 +46,6 @@ class LiquibasePersistenceIntegrationTest {
 
   @Autowired
   private OutboxEventRepository outboxEventRepository;
-
-  @DynamicPropertySource
-  static void configureDataSource(DynamicPropertyRegistry registry) {
-    registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
-    registry.add("spring.datasource.username", POSTGRES::getUsername);
-    registry.add("spring.datasource.password", POSTGRES::getPassword);
-  }
 
   @BeforeEach
   void clearDatabase() {
