@@ -183,6 +183,8 @@ docs/adr                      Architecture Decision Records
 - Use `CDATA` only when SQL contains XML-reserved characters such as `<`, `>`, or `&`.
 - Do not use Hibernate `ddl-auto` to create schema. Test profiles validate the Liquibase-created schema.
 - `result.message_id` is `UUID NOT NULL UNIQUE`; persist event time and technical creation time separately.
+- Do not rely on JPA dirty checking for write-side persistence. After changing an entity, call the relevant
+  repository `save(...)` explicitly, or use an explicitly named bulk update query when it is the intended operation.
 
 ## Docker Compose
 

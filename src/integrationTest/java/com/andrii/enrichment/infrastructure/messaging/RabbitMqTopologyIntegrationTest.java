@@ -3,10 +3,12 @@ package com.andrii.enrichment.infrastructure.messaging;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.andrii.enrichment.infrastructure.configuration.EnrichmentMessagingProperties;
+import com.andrii.enrichment.infrastructure.configuration.OutboxPublisherProperties;
 import com.rabbitmq.client.ConnectionFactory;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import org.awaitility.Awaitility;
+import org.jspecify.annotations.NonNull;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.amqp.rabbit.connection.CachingConnectionFactory;
@@ -25,12 +27,11 @@ class RabbitMqTopologyIntegrationTest {
   @Container
   private static final RabbitMQContainer RABBIT_MQ = new RabbitMQContainer("rabbitmq:4-management-alpine");
 
-  private CachingConnectionFactory connectionFactory;
   private RabbitAdmin rabbitAdmin;
 
   @BeforeEach
   void setUp() {
-    connectionFactory = new CachingConnectionFactory(RABBIT_MQ.getHost(), RABBIT_MQ.getAmqpPort());
+    var connectionFactory = new CachingConnectionFactory(RABBIT_MQ.getHost(), RABBIT_MQ.getAmqpPort());
     connectionFactory.setUsername(RABBIT_MQ.getAdminUsername());
     connectionFactory.setPassword(RABBIT_MQ.getAdminPassword());
     rabbitAdmin = new RabbitAdmin(connectionFactory);
@@ -80,20 +81,30 @@ class RabbitMqTopologyIntegrationTest {
   }
 
   private void declareTopology() {
-    var properties = new EnrichmentMessagingProperties(
-      INPUT_EXCHANGE, INPUT_QUEUE, INPUT_ROUTING_KEY,
-      "enrichment.retry", "enrichment.retry.queue", "enrichment.retry",
-      "enrichment.dlx", "enrichment.dlq", "enrichment.dlq", 100, 3);
-    var configuration = new EnrichmentMessagingConfiguration(properties);
+    var configuration = getEnrichmentMessagingConfiguration();
 
     rabbitAdmin.declareExchange(configuration.inputExchange());
     rabbitAdmin.declareExchange(configuration.retryExchange());
     rabbitAdmin.declareExchange(configuration.deadLetterExchange());
+    rabbitAdmin.declareExchange(configuration.outputExchange());
     rabbitAdmin.declareQueue(configuration.inputQueue());
     rabbitAdmin.declareQueue(configuration.retryQueue());
     rabbitAdmin.declareQueue(configuration.deadLetterQueue());
     rabbitAdmin.declareBinding(configuration.inputBinding());
     rabbitAdmin.declareBinding(configuration.retryBinding());
     rabbitAdmin.declareBinding(configuration.deadLetterBinding());
+  }
+
+  private static @NonNull EnrichmentMessagingConfiguration getEnrichmentMessagingConfiguration() {
+    var properties = new EnrichmentMessagingProperties(
+      INPUT_EXCHANGE, INPUT_QUEUE, INPUT_ROUTING_KEY,
+      "enrichment.retry", "enrichment.retry.queue", "enrichment.retry",
+      "enrichment.dlx", "enrichment.dlq", "enrichment.dlq", 100, 3);
+    var outboxProperties = new OutboxPublisherProperties(
+      "enrichment.output", "enrichment.output", 20, Duration.ofSeconds(1), Duration.ofSeconds(5),
+      Duration.ofSeconds(30), Duration.ofSeconds(5), Duration.ofMinutes(5), 10
+    );
+    var configuration = new EnrichmentMessagingConfiguration(properties, outboxProperties);
+    return configuration;
   }
 }
