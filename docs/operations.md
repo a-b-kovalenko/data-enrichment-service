@@ -98,6 +98,24 @@ ORDER BY next_attempt_at, id;
 downstream consumer має оголосити власну durable queue і binding з routing key
 `enrichment.output`.
 
+Для локального smoke flow створіть у RabbitMQ Management UI queue
+`enrichment.output.local.queue` як durable і додайте binding:
+
+- source exchange: `enrichment.output`;
+- destination type: `queue`;
+- destination: `enrichment.output.local.queue`;
+- routing key: `enrichment.output`.
+
+Те саме через термінал:
+
+```bash
+docker compose exec -T rabbitmq rabbitmqadmin -H localhost -u enrichment -p enrichment \
+  declare queue --name enrichment.output.local.queue --durable true --auto-delete false
+docker compose exec -T rabbitmq rabbitmqadmin -H localhost -u enrichment -p enrichment \
+  declare binding --source enrichment.output --destination-type queue \
+  --destination enrichment.output.local.queue --routing-key enrichment.output
+```
+
 Якщо такої queue немає, mandatory publish повертається publisher-у як unroutable.
 Outbox event лишається `PENDING` і буде повторений з backoff. Це захищає від втрати
 події, але не замінює коректне налаштування consumer-а.

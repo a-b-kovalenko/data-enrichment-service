@@ -11,7 +11,7 @@ public final class RabbitMqTestSupport {
 
   public static void purgeQueues(RabbitAdmin rabbitAdmin, String... queueNames) {
     for (var queueName : queueNames) {
-      rabbitAdmin.purgeQueue(queueName, true);
+      rabbitAdmin.purgeQueue(queueName, false);
     }
   }
 

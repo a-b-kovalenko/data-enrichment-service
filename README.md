@@ -178,6 +178,30 @@ docker compose up -d --wait
 Для ручного smoke flow відкрийте `bruno`, виберіть environment `local` і виконайте
 `Publish input message`. Перед повтором змініть `message_id`.
 
+### Локальна output queue
+
+Сервіс публікує результат в exchange `enrichment.output`, але не створює queue для
+отримувача. Перед локальним smoke flow створіть у RabbitMQ Management UI durable
+queue `enrichment.output.local.queue` і додайте binding:
+
+- source exchange: `enrichment.output`;
+- destination queue: `enrichment.output.local.queue`;
+- routing key: `enrichment.output`.
+
+Або виконайте в терміналі:
+
+```bash
+docker compose exec -T rabbitmq rabbitmqadmin -H localhost -u enrichment -p enrichment \
+  declare queue --name enrichment.output.local.queue --durable true --auto-delete false
+docker compose exec -T rabbitmq rabbitmqadmin -H localhost -u enrichment -p enrichment \
+  declare binding --source enrichment.output --destination-type queue \
+  --destination enrichment.output.local.queue --routing-key enrichment.output
+```
+
+Після цього опубліковані output events з'являться в цій queue. Без binding RabbitMQ
+не зможе маршрутизувати подію, тому outbox event лишатиметься `PENDING` і буде
+повторений publisher-ом.
+
 ## Тести і quality gate
 
 ```bash
